@@ -1,0 +1,74 @@
+# https://docs.gitlab.com/ee/user/infrastructure/iac/
+# The Terraform.latest.gitlab-ci.yml template:
+# * Uses the latest GitLab Terraform image.
+# * Uses the GitLab-managed Terraform state as the Terraform state storage backend.
+# * Creates four pipeline stages: test, validate, build, and deploy.
+#   These stages run the Terraform commands test, validate, plan, plan-json, and apply.
+#   The apply command only runs on the default branch.
+# * Runs the Terraform SAST scanner,
+#   that you can disable by creating a SAST_DISABLED environment variable and setting it to 1.
+
+# reference
+# * https://gitlab.com/gitlab-org/gitlab/-/issues/223131
+# * https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Terraform/Base.gitlab-ci.yml
+# * https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Terraform.latest.gitlab-ci.yml
+
+include:
+  - template: Terraform.latest.gitlab-ci.yml
+
+.multi-states:
+  parallel:
+    matrix:
+      # Note that variable expansion is not working currently in this scope.
+      - TF_ROOT: environments/dev
+        TF_STATE_NAME: dev
+
+before_script:
+  - cd ${TF_ROOT}
+
+stages:
+  - prepare
+  - validate
+  - plan
+  - test # 'test' stage is required to run gitlab Terraform SAST scanner.
+  - deploy
+
+init:
+  extends: .multi-states
+  stage: prepare
+  script:
+    - gitlab-terraform init
+
+validate:
+  extends: .multi-states
+  stage: validate
+  script:
+    - gitlab-terraform validate
+
+# Override 'build' stage from template
+build:
+  extends: .multi-states
+  stage: plan
+  script:
+    - gitlab-terraform plan
+    - gitlab-terraform plan-json
+  artifacts:
+    name: plan
+    paths:
+      - ${TF_ROOT}/plan.cache
+    reports:
+      terraform: ${TF_ROOT}/plan.json
+
+apply:
+  extends: .multi-states
+  stage: deploy
+  environment:
+    name: production
+  script:
+    - gitlab-terraform apply
+  dependencies:
+    - build
+  when: manual
+  only:
+    - master
+
