@@ -1,0 +1,23 @@
+context:
+  region: "ap-northeast-2"
+  allowed_account_ids:
+    - 11111111
+    - 22222222
+
+vpc:
+  name: "cherry-dev"
+  cidr: "10.0.0.0/24"
+
+subnet_groups:
+  - name: "public"
+    map_public_ip_on_launch: true
+    subnets:
+      - cidr: "10.222.0.0/24"
+        az: "ap-northeast-2a"
+      - cidr: "10.222.1.0/24"
+        az: "ap-northeast-2b"
+
+  - name: "private"
+    subnets:
+      - cidr: "10.222.2.0/24"
+        az: "ap-northeast-2a"
